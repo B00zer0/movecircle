@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>MoveCircle</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-bg"></div>
+    <div id="toast" class="toast hidden" aria-live="polite"></div>
+
+    <section id="authView" class="auth-shell">
+      <div class="auth-card glass">
+        <div class="brand-block">
+          <p class="eyebrow">Спортивная соцсеть</p>
+          <h1>MoveCircle</h1>
+          <p class="lead">Друзья, команды, переписка и спортивные челленджи в одном простом приложении.</p>
+        </div>
+
+        <div class="auth-toggle">
+          <button class="auth-toggle-button active" data-auth-mode="login">Вход</button>
+          <button class="auth-toggle-button" data-auth-mode="register">Регистрация</button>
+        </div>
+
+        <label class="field">
+          <span>Адрес сервера</span>
+          <input id="apiBaseInput" class="input" type="url" placeholder="http://127.0.0.1:4173" />
+        </label>
+        <p class="muted tiny-note">Для APK укажи URL своего сервера, если он не запущен на этом же устройстве.</p>
+
+        <form id="loginForm" class="auth-form">
+          <label class="field">
+            <span>Email или ник</span>
+            <input class="input" type="text" name="emailOrUsername" required />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input class="input" type="password" name="password" minlength="6" required />
+          </label>
+          <button class="primary-button" type="submit">Войти</button>
+        </form>
+
+        <form id="registerForm" class="auth-form hidden">
+          <label class="field">
+            <span>Имя</span>
+            <input class="input" type="text" name="name" minlength="2" required />
+          </label>
+          <label class="field">
+            <span>Ник</span>
+            <input class="input" type="text" name="username" minlength="3" required />
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input class="input" type="email" name="email" required />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input class="input" type="password" name="password" minlength="6" required />
+          </label>
+          <button class="primary-button" type="submit">Создать аккаунт</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="appView" class="app-shell hidden">
+      <div class="device-frame">
+        <header id="topbar" class="topbar glass">
+          <div>
+            <p class="eyebrow">MoveCircle</p>
+            <h2 id="headerGreeting">Твой круг</h2>
+          </div>
+          <button id="themeToggleButton" class="theme-toggle-button" type="button" aria-label="Переключить тему">☾</button>
+        </header>
+
+        <main class="phone-screen">
+          <section class="tab-panel active" data-tab="home">
+            <section class="hero-card">
+              <div>
+                <p class="eyebrow">Сегодня</p>
+                <h3 id="heroSteps">0 шагов</h3>
+                <p id="heroCalories">0 ккал</p>
+              </div>
+              <div class="ring-core" id="goalRing">
+                <span id="goalPercent">0%</span>
+                <small>цели</small>
+              </div>
+            </section>
+
+            <section class="stats-grid" id="dashboardStats"></section>
+
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Лента</p>
+                  <h3>Твой спортивный день</h3>
+                </div>
+              </div>
+              <div id="feedCards" class="stack"></div>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-tab="friends">
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Друзья</p>
+                  <h3>Поиск и запросы</h3>
+                </div>
+              </div>
+
+              <label class="field">
+                <span>Найти по нику</span>
+                <input id="friendSearchInput" class="input" type="text" placeholder="@nickname или имя" />
+              </label>
+
+              <div id="friendRequests" class="stack"></div>
+              <div id="friendSearchResults" class="stack"></div>
+              <div id="friendList" class="stack"></div>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-tab="chats">
+            <section class="glass section-card chat-list-view">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Чаты</p>
+                  <h3>Диалоги</h3>
+                </div>
+              </div>
+              <div id="chatList" class="chat-list"></div>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-tab="conversation">
+            <section class="chat-screen">
+              <header class="chat-hero glass">
+                <button id="chatBackButton" class="back-button" type="button" aria-label="Назад к чатам">←</button>
+                <div class="chat-hero-meta">
+                  <div id="chatAvatar" class="avatar">MC</div>
+                  <div>
+                    <p id="chatTypeLabel" class="eyebrow">Чат</p>
+                    <h3 id="chatTitle">Выбери диалог</h3>
+                    <p id="chatSubtitle" class="muted">Выбери диалог слева</p>
+                  </div>
+                </div>
+                <div class="chat-actions">
+                  <button id="chatThemeToggleButton" class="theme-toggle-button" type="button" aria-label="Переключить тему">☾</button>
+                </div>
+              </header>
+
+              <div id="messageList" class="message-list chat-messages"></div>
+
+              <form id="messageForm" class="composer chat-composer">
+                <input id="messageInput" class="input" type="text" maxlength="240" placeholder="Сообщение" required />
+                <button class="send-button" type="submit" aria-label="Отправить сообщение">→</button>
+              </form>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-tab="teams">
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Команды</p>
+                  <h3>Создай клуб</h3>
+                </div>
+              </div>
+              <form id="createTeamForm" class="stack">
+                <label class="field">
+                  <span>Название</span>
+                  <input class="input" type="text" name="name" minlength="3" required />
+                </label>
+                <label class="field">
+                  <span>Описание</span>
+                  <textarea class="textarea" name="description" rows="3" required></textarea>
+                </label>
+                <button class="primary-button" type="submit">Создать</button>
+              </form>
+            </section>
+
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Мои команды</p>
+                  <h3>Внутренний рейтинг</h3>
+                </div>
+              </div>
+              <div id="memberTeams" class="stack"></div>
+            </section>
+
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Открытые команды</p>
+                  <h3>Вступить</h3>
+                </div>
+              </div>
+              <div id="teamDirectory" class="stack"></div>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-tab="competition">
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Рейтинг</p>
+                  <h3>Шаги и калории</h3>
+                </div>
+              </div>
+              <div id="leaderboardList" class="stack"></div>
+            </section>
+
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Челлендж</p>
+                  <h3 id="challengeTitle">Общий зачет</h3>
+                </div>
+                <span id="challengePercentBadge" class="pill">0%</span>
+              </div>
+              <div class="progress"><div id="challengeFill" class="progress-fill"></div></div>
+              <p id="challengeCopy" class="muted"></p>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-tab="profile">
+            <section class="profile-top">
+              <div id="profileAvatar" class="avatar">MC</div>
+              <div>
+                <p class="eyebrow">Профиль</p>
+                <h3 id="profileName">Пользователь</h3>
+                <p id="profileHandle" class="muted">@username</p>
+              </div>
+            </section>
+
+            <section class="glass section-card">
+              <form id="profileForm" class="stack">
+                <label class="field">
+                  <span>О себе</span>
+                  <textarea id="bioInput" class="textarea" rows="3" maxlength="220"></textarea>
+                </label>
+                <label class="field">
+                  <span>Цель по шагам</span>
+                  <input id="goalInput" type="range" min="4000" max="25000" step="500" />
+                </label>
+                <p id="goalLabel" class="muted"></p>
+                <label class="field">
+                  <span>Шаги сегодня (вручную)</span>
+                  <input id="stepsInput" class="input" type="number" min="0" max="500000" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Калории сегодня (вручную)</span>
+                  <input id="caloriesInput" class="input" type="number" min="0" max="50000" placeholder="0" />
+                </label>
+                <button class="primary-button" type="submit">Сохранить</button>
+              </form>
+            </section>
+
+            <section class="glass section-card">
+              <button id="logoutButton" class="secondary-button" type="button">Выйти</button>
+            </section>
+
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Xiaomi / Mi Fitness</p>
+                  <h3>Sync Key</h3>
+                </div>
+              </div>
+              <p class="muted">Используй этот ключ в приложении-мосте для автоматической синхронизации шагов.</p>
+              <p id="syncKeyDisplay" class="sync-key-box"></p>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-tab="admin">
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Админка</p>
+                  <h3>Пользователи</h3>
+                </div>
+              </div>
+              <div id="adminUsersList" class="stack"></div>
+            </section>
+
+            <section class="glass section-card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Админка</p>
+                  <h3>Клубы</h3>
+                </div>
+              </div>
+              <div id="adminClubsList" class="stack"></div>
+            </section>
+          </section>
+        </main>
+
+        <nav class="bottom-nav glass">
+          <button class="nav-item active" data-target="home">Главная</button>
+          <button class="nav-item" data-target="friends">Друзья</button>
+          <button class="nav-item" data-target="chats">Чаты</button>
+          <button class="nav-item" data-target="teams">Команды</button>
+          <button class="nav-item" data-target="competition">Топ</button>
+          <button class="nav-item hidden" data-target="admin" id="adminNavButton">Админ</button>
+        </nav>
+      </div>
+    </section>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

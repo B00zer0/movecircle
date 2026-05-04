@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: movecircle
+    runtime: node
+    plan: free
+    autoDeploy: true
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: AI_MODE
+        value: disabled
+      - key: PORT
+        value: 4173
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false

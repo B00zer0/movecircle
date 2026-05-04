@@ -1,0 +1,25 @@
+{
+  "name": "movecircle",
+  "private": true,
+  "version": "1.0.0",
+  "description": "MoveCircle - a mobile sports social network.",
+  "scripts": {
+    "start": "node server.js",
+    "share": "node server.js",
+    "build:web": "node scripts/build-web.mjs",
+    "export:cloud": "node scripts/export-cloud-sql.mjs",
+    "cap:sync": "cap sync android",
+    "cap:add": "cap add android",
+    "android:debug": "npm run build:web && npm run cap:sync && cd android && gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@libsql/client": "^0.17.3",
+    "cloudflared": "^0.7.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
