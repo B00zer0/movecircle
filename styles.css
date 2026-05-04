@@ -269,17 +269,25 @@ h1, h2, h3 { font-family: "SF Pro Display", "Avenir Next", "Segoe UI", sans-seri
   width: 108px;
   height: 108px;
   border-radius: 50%;
-  display: grid;
-  place-items: center;
-  gap: 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   color: var(--ink);
   background:
     radial-gradient(circle at center, rgba(255,255,255,0.96) 0 41%, transparent 41%),
     conic-gradient(#fff 0 70%, rgba(255,255,255,0.24) 70% 100%);
 }
-.ring-core span { font-size: 1.1rem; font-weight: 700; line-height: 1; }
-.ring-core small { color: var(--muted); font-size: 0.72rem; line-height: 1; }
+.ring-core span,
+.ring-core small {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+}
+.ring-core span { top: 33px; font-size: 1.1rem; font-weight: 700; line-height: 1; }
+.ring-core small { top: 58px; color: var(--muted); font-size: 0.72rem; line-height: 1; }
 
 .stats-grid {
   display: grid;

@@ -17,7 +17,7 @@ const LM_STUDIO_BASE = process.env.LM_STUDIO_BASE || "http://127.0.0.1:1234/v1";
 const LM_STUDIO_CHAT = `${LM_STUDIO_BASE}/chat/completions`;
 const DEFAULT_MODEL = process.env.LM_STUDIO_MODEL || "google/gemma-4-e4b";
 const DEFAULT_ADMIN_USERNAME = normalizeHandle(process.env.ADMIN_USERNAME || "b00zer");
-const DEFAULT_ADMIN_EMAIL = normalizeEmail(process.env.ADMIN_EMAIL || "");
+const DEFAULT_ADMIN_EMAIL = normalizeEmail(process.env.ADMIN_EMAIL || "b00zerogg@gmail.com");
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -179,8 +179,8 @@ async function handleApi(req, res, url) {
   if (pathname === "/api/assistant/chat" && req.method === "POST") {
     const session = await requireSession(req);
     const body = await readJson(req);
-    await askAssistant(session.user.id, body.message);
-    sendJson(res, 200, { ok: true });
+    const answer = await askAssistant(session.user.id, body.message);
+    sendJson(res, 200, { ok: true, answer });
     return;
   }
 
@@ -315,7 +315,7 @@ async function initializeDatabase() {
   await db.exec(schema);
   await ensureColumn("users", "is_admin", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("users", "banned_at", "TEXT");
-  await ensureAdminSeed();
+  await syncAdminAccess();
   if (db.kind !== "remote") {
     await purgeDemoData();
   }
@@ -346,14 +346,17 @@ async function purgeDemoData() {
 }
 
 async function getBootstrapPayload(userId) {
-  const me = await getMe(userId);
-  const friends = await listFriends(userId);
-  const requests = await listFriendRequests(userId);
-  const teams = await listTeams(userId);
-  const leaderboard = await listLeaderboard();
+  const [me, friends, requests, teams, leaderboard, assistant, adminEnabled] = await Promise.all([
+    getMe(userId),
+    listFriends(userId),
+    listFriendRequests(userId),
+    listTeams(userId),
+    listLeaderboard(),
+    getAssistantMeta(userId),
+    isAdminUser(userId)
+  ]);
   const challenge = buildChallenge(teams, leaderboard);
-  const assistant = await getAssistantMeta(userId);
-  const admin = (await isAdminUser(userId))
+  const admin = adminEnabled
     ? { users: await listAdminUsers(), clubs: await listAdminTeams() }
     : null;
 
@@ -566,27 +569,33 @@ async function createFriendship(a, b) {
 }
 
 async function listFriends(userId) {
-  return Promise.all((await getFriendIds(userId)).map(async (friendId) => {
-    const user = await db.prepare("SELECT id, name, username, bio FROM users WHERE id = ?").get(friendId);
-    const metrics = await getMetrics(friendId);
-    const lastMessage = await db
-      .prepare(
-        `SELECT body FROM direct_messages
-         WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
-         ORDER BY id DESC LIMIT 1`
-      )
-      .get(userId, friendId, friendId, userId);
-
-    return {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      bio: user.bio,
-      steps: metrics.steps,
-      calories: metrics.calories,
-      lastMessage: lastMessage?.body || ""
-    };
-  }));
+  return await db
+    .prepare(
+      `SELECT u.id,
+              u.name,
+              u.username,
+              u.bio,
+              COALESCE(m.steps, 0) AS steps,
+              COALESCE(m.calories, 0) AS calories,
+              COALESCE((
+                SELECT dm.body
+                FROM direct_messages dm
+                WHERE (dm.sender_id = ? AND dm.recipient_id = u.id)
+                   OR (dm.sender_id = u.id AND dm.recipient_id = ?)
+                ORDER BY dm.id DESC
+                LIMIT 1
+              ), '') AS lastMessage
+       FROM friendships f
+       JOIN users u
+         ON u.id = CASE
+           WHEN f.user_low = ? THEN f.user_high
+           ELSE f.user_low
+         END
+       LEFT JOIN user_metrics m ON m.user_id = u.id
+       WHERE f.user_low = ? OR f.user_high = ?
+       ORDER BY u.name ASC, u.username ASC`
+    )
+    .all(userId, userId, userId, userId, userId);
 }
 
 async function removeFriendship(userId, otherUserId) {
@@ -598,53 +607,65 @@ async function removeFriendship(userId, otherUserId) {
 }
 
 async function listTeams(userId) {
-  const teams = await db
-    .prepare("SELECT t.*, u.name AS owner_name FROM teams t JOIN users u ON u.id = t.owner_id ORDER BY t.id DESC")
+  const rows = await db
+    .prepare(
+      `SELECT t.id AS team_id,
+              t.name AS team_name,
+              t.description AS team_description,
+              owner.name AS owner_name,
+              member.id AS member_id,
+              member.name AS member_name,
+              member.username AS member_username,
+              COALESCE(metrics.steps, 0) AS member_steps,
+              COALESCE(metrics.calories, 0) AS member_calories
+       FROM teams t
+       JOIN users owner ON owner.id = t.owner_id
+       LEFT JOIN team_members tm ON tm.team_id = t.id
+       LEFT JOIN users member ON member.id = tm.user_id
+       LEFT JOIN user_metrics metrics ON metrics.user_id = member.id
+       ORDER BY t.id DESC, tm.joined_at ASC, member.id ASC`
+    )
     .all();
 
-  return Promise.all(teams.map(async (team) => {
-      const memberRows = await db
-        .prepare(
-          `SELECT u.id, u.name, u.username
-           FROM team_members tm
-           JOIN users u ON u.id = tm.user_id
-           WHERE tm.team_id = ?
-           ORDER BY tm.joined_at ASC`
-        )
-        .all(team.id);
+  const teams = [];
+  const teamMap = new Map();
 
-      const members = await Promise.all(memberRows.map(async (member) => {
-        const metricsRow = await db.prepare("SELECT steps, calories FROM user_metrics WHERE user_id = ?").get(member.id);
-        return {
-          id: member.id,
-          name: member.name,
-          username: member.username,
-          steps: metricsRow?.steps || 0,
-          calories: metricsRow?.calories || 0
-        };
-      }));
-
-      const totals = members.reduce(
-        (acc, member) => {
-          acc.steps += member.steps;
-          acc.calories += member.calories;
-          return acc;
-        },
-        { steps: 0, calories: 0 }
-      );
-
-      return {
-        id: team.id,
-        name: team.name,
-        description: team.description,
-        ownerName: team.owner_name,
-        isMember: members.some((member) => member.id === userId),
-        memberCount: members.length,
-        totalSteps: totals.steps,
-        totalCalories: totals.calories,
-        members
+  for (const row of rows) {
+    let team = teamMap.get(row.team_id);
+    if (!team) {
+      team = {
+        id: row.team_id,
+        name: row.team_name,
+        description: row.team_description,
+        ownerName: row.owner_name,
+        isMember: false,
+        memberCount: 0,
+        totalSteps: 0,
+        totalCalories: 0,
+        members: []
       };
-    }));
+      teamMap.set(row.team_id, team);
+      teams.push(team);
+    }
+
+    if (!row.member_id) continue;
+
+    const member = {
+      id: row.member_id,
+      name: row.member_name,
+      username: row.member_username,
+      steps: row.member_steps || 0,
+      calories: row.member_calories || 0
+    };
+
+    team.members.push(member);
+    team.memberCount += 1;
+    team.totalSteps += member.steps;
+    team.totalCalories += member.calories;
+    if (member.id === userId) team.isMember = true;
+  }
+
+  return teams;
 }
 
 async function listLeaderboard() {
@@ -900,17 +921,15 @@ async function ensureColumn(table, column, definition) {
   }
 }
 
-async function ensureAdminSeed() {
-  const adminEmail = DEFAULT_ADMIN_EMAIL || "__no_admin__";
-  const admin = await db
-    .prepare("SELECT id FROM users WHERE username = ? OR (email = ? AND email != '')")
-    .get(DEFAULT_ADMIN_USERNAME, adminEmail);
-  if (admin && admin.id != null) {
-    const userId = Number(admin.id);
-    if (Number.isFinite(userId)) {
-      await db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(userId);
-    }
+async function syncAdminAccess() {
+  if (!DEFAULT_ADMIN_EMAIL && !DEFAULT_ADMIN_USERNAME) {
+    await db.prepare("UPDATE users SET is_admin = 0").run();
+    return;
   }
+
+  await db
+    .prepare("UPDATE users SET is_admin = CASE WHEN LOWER(username) = ? OR LOWER(email) = ? THEN 1 ELSE 0 END")
+    .run(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_EMAIL);
 }
 
 async function isAdminUser(userId) {

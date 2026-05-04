@@ -298,13 +298,31 @@ async function handleSendMessage(event) {
 
   try {
     if (state.selectedChat.type === "assistant") {
-      await api("/api/assistant/chat", { method: "POST", body: { message: body } });
+      const response = await api("/api/assistant/chat", { method: "POST", body: { message: body } });
+      const history = [...(state.data?.assistant?.history || []), { role: "user", content: body }];
+      if (response.answer) {
+        history.push({ role: "assistant", content: response.answer });
+      }
+      if (state.data?.assistant) {
+        state.data.assistant.history = history;
+      }
+      state.messages.assistant = history;
     } else {
       await api(`/api/messages/${state.selectedChat.id}`, { method: "POST", body: { body } });
+      const friendId = Number(state.selectedChat.id);
+      const messages = state.messages[friendId] || [];
+      messages.push({
+        id: `local-${Date.now()}`,
+        body,
+        createdAt: new Date().toISOString(),
+        isMine: true
+      });
+      state.messages[friendId] = messages;
+      updateFriendLastMessage(friendId, body);
     }
     refs.messageInput.value = "";
-    await ensureSelectedChatLoaded(true);
-    await bootstrapApp();
+    renderChats();
+    renderConversation();
   } catch (error) {
     showToast(error.message);
   }
@@ -672,6 +690,13 @@ function getLastAssistantText() {
   const history = state.data?.assistant?.history || [];
   const last = history[history.length - 1];
   return last ? (last.content || last.body || "").slice(0, 80) : "Спроси про тренировку";
+}
+
+function updateFriendLastMessage(friendId, message) {
+  const friend = state.data?.friends?.find((entry) => Number(entry.id) === Number(friendId));
+  if (friend) {
+    friend.lastMessage = message;
+  }
 }
 
 function renderRequests(requests) {
