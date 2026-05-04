@@ -1,10 +1,11 @@
 const TOKEN_KEY = "movecircle-token";
 const API_BASE_KEY = "movecircle-api-base";
 const THEME_KEY = "movecircle-theme";
+const REMOTE_API_FALLBACK = "https://movecircle.onrender.com";
 
 const state = {
   token: localStorage.getItem(TOKEN_KEY) || "",
-  apiBase: localStorage.getItem(API_BASE_KEY) || "",
+  apiBase: localStorage.getItem(API_BASE_KEY) || detectDefaultApiBase(),
   theme: localStorage.getItem(THEME_KEY) || "light",
   data: null,
   activeTab: "home",
@@ -971,6 +972,25 @@ function buildApiUrl(url) {
 function handleApiBaseChange() {
   state.apiBase = refs.apiBaseInput.value.trim();
   localStorage.setItem(API_BASE_KEY, state.apiBase);
+}
+
+function detectDefaultApiBase() {
+  const protocol = window.location.protocol || "";
+  const hostname = window.location.hostname || "";
+
+  if (protocol === "http:" || protocol === "https:") {
+    return window.location.origin;
+  }
+
+  if (protocol === "capacitor:" || protocol === "file:") {
+    return REMOTE_API_FALLBACK;
+  }
+
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return "http://127.0.0.1:4173";
+  }
+
+  return REMOTE_API_FALLBACK;
 }
 
 function statCard(title, value) {
