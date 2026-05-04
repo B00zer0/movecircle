@@ -1001,13 +1001,13 @@ async function ensureSyncKey(userId) {
 }
 
 async function getFriendIds(userId) {
-  return (await db
+  return ((await db
     .prepare(
       `SELECT CASE WHEN user_low = ? THEN user_high ELSE user_low END AS friend_id
        FROM friendships
        WHERE user_low = ? OR user_high = ?`
     )
-    .all(userId, userId, userId)
+    .all(userId, userId, userId))
     .map((row) => row.friend_id));
 }
 
